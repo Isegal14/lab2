@@ -90,4 +90,4 @@ python3 exploit.py
 
 Фрагмент `fix.diff` с исправлениями:
 
-![Содержимое fix.diff](pictures/diff_res.jpg)
+![Содержимое fix.diff](pictures/diff_res.png)
