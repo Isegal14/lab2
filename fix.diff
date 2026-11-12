@@ -1,0 +1,63 @@
+--- app.py	2026-11-12 18:57:23.493851415 +0300
++++ app_fixed.py	2026-11-12 18:57:36.833852208 +0300
+@@ -1,6 +1,7 @@
+-# NoteBox - простое приложение для заметок (УЯЗВИМАЯ версия)
+-# Запуск: python3 app.py  ->  http://127.0.0.1:8001
++# NoteBox - простое приложение для заметок (ИСПРАВЛЕННАЯ версия)
++# Запуск: python3 app_fixed.py  ->  http://127.0.0.1:8001
+ import os
++import secrets
+ import sqlite3
+ from html import escape
+ from http.server import BaseHTTPRequestHandler, HTTPServer
+@@ -108,7 +109,10 @@
+                 self.answer(make_page("Заметка не найдена", user), 404)
+                 return
+             owner, title, text = row
+-            # УЯЗВИМОСТЬ 1 (IDOR): не проверяем, что заметка принадлежит user
++            # ИСПРАВЛЕНО 1: чужие заметки смотреть нельзя
++            if owner != user:
++                self.answer(make_page("Доступ запрещён", user), 403)
++                return
+             body = "<h2>" + escape(title) + "</h2><p>Автор: " + escape(owner) + "</p><pre>" + escape(text) + "</pre>"
+             self.answer(make_page(body, user))
+ 
+@@ -121,8 +125,11 @@
+ 
+         elif url.path == "/download":
+             name = params.get("name", [""])[0]
+-            # УЯЗВИМОСТЬ 2 (Path Traversal): имя файла не проверяется, можно написать ../
+-            path = os.path.join(FILES_DIR, name)
++            # ИСПРАВЛЕНО 2: считаем настоящий путь и проверяем, что он внутри папки files
++            path = os.path.realpath(os.path.join(FILES_DIR, name))
++            if not path.startswith(os.path.realpath(FILES_DIR) + os.sep):
++                self.answer(make_page("Доступ запрещён", user), 403)
++                return
+             if os.path.isfile(path):
+                 self.answer(open(path, "rb").read(), plain=True)
+             else:
+@@ -148,20 +155,18 @@
+             self.answer(make_page("Неверный логин или пароль" + LOGIN_FORM, None), 401)
+             return
+ 
+-        # УЯЗВИМОСТЬ 3: токен - просто следующее число (1000, 1001, ...), его легко угадать
+-        token = str(next_token)
+-        next_token = next_token + 1
++        # ИСПРАВЛЕНО 3: токен случайный, угадать нельзя; cookie недоступна для JavaScript
++        token = secrets.token_hex(16)
+         sessions[token] = username
+         self.answer(make_page("Добро пожаловать, " + escape(username), username),
+-                    cookie="session=" + token + "; Path=/")
++                    cookie="session=" + token + "; Path=/; HttpOnly; SameSite=Strict")
+ 
+     def log_message(self, *args):
+         pass  # не печатаем лог запросов
+ 
+ 
+ create_data()
+-sessions["1000"] = "admin"   # администратор уже вошёл
+-next_token = 1001
++sessions[secrets.token_hex(16)] = "admin"   # администратор уже вошёл (токен случайный)
+ 
+ if __name__ == "__main__":
+     print("Сервер запущен: http://127.0.0.1:8001")
